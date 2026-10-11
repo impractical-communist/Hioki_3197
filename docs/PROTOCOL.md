@@ -145,30 +145,57 @@ Each module's docstring has the full byte-level layout. In short:
   period (15/30/60 min, from `3197set.set`'s `demand` field via
   `demandfile.demand_period_seconds()`), starting at the file's recorded
   start time (reverse-engineered from `view3197/TpDemData.class`).
+- `97intvl.itv` (`hioki3197/intervalfile.py`, from `:BDATA:TIMEPLOT?`) is
+  the interval/trend log, and the biggest format -- one 436-byte record
+  per logged interval, holding 32 measurement items (`Freq`, `U1-U3`,
+  `I1-I4`, voltage/current peaks per channel, `Uave`/`Iave`,
+  `Psum`/`Qsum`/`Ssum`/`PFsum`, `THD1-3`, `Uunb`) x 3 statistics
+  (Max/Min/Ave over the interval), plus 6 per-channel voltage extremes
+  (`Umax1-3`/`Umin1-3`) and the same 4 cumulative-energy fields as the
+  interval log's energy columns (`WP+`/`WP-`/`WQ_LAG`/`WQ_LEAD`, Wh/varh).
+  Reverse-engineered from `view3197/TpData.class` -- item names and the
+  `WP+`/`WQ_LAG`-style energy labels came straight out of its
+  `makeHeader()` CSV-header-writing logic. All values are already real
+  engineering units, same pre-scaled-float convention as everything else.
 
-All four are checked against real hardware: the decoded `3197set.set`
-serial number matches the physical unit exactly; a captured `.evt`
-waveform's U1 channel peaks at the expected magnitude (~sqrt(2) x the live
-RMS voltage reading) once scaled; a real disconnect/reconnect test
-produced a `.wdu` trend that smoothly falls from 239V to ~0V over the
-interruption and a second one that climbs back from ~0V to 239V on
+All five formats are checked against real hardware. The decoded
+`3197set.set` serial number matches the physical unit exactly. A captured
+`.evt` waveform's U1 channel peaks at the expected magnitude (~sqrt(2) x
+the live RMS voltage reading) once scaled. A real disconnect/reconnect
+test produced a `.wdu` trend that smoothly falls from 239V to ~0V over
+the interruption and a second one that climbs back from ~0V to 239V on
 reconnect, both `evt_id`-linked to the matching `INTERRUPT` records in
-the `.evt` files; and `97demand.dem` parses cleanly at both zero and
-non-zero interval counts, with correctly-spaced interval timestamps.
-`examples/decode_event.py`, `examples/decode_wdu.py`, and
-`examples/decode_demand.py` tie it together -- human-readable summaries
-plus CSV export for each format; `examples/events_to_csv.py` flattens
-every `.evt` in a folder into one spreadsheet-friendly summary.
+the `.evt` files. `97demand.dem` parses cleanly at both zero and non-zero
+interval counts, with correctly-spaced interval timestamps. And
+`97intvl.itv`, decoded from that same test, shows U1 at ~239V across all
+31 one-second intervals (matching the live screen and the `.evt` RMS
+values), a `U1peak+` of ~326V (matching the independently-derived `.evt`
+waveform peak almost exactly), and timestamps spanning exactly the
+recording session's START-to-STOP window -- three-way cross-validation
+across completely independent file formats, all agreeing. Byte-size math
+also checks out exactly: three real `97intvl.itv` files of very different
+sizes (3192, 13656, 794096 bytes) all divide out to an exact integer
+`wave_num` under the 436-bytes-per-record layout, with zero bytes left
+over.
+
+`examples/decode_event.py`, `examples/decode_wdu.py`,
+`examples/decode_demand.py`, and `examples/decode_interval.py` tie it all
+together -- human-readable summaries plus CSV export for each format;
+`examples/events_to_csv.py` flattens every `.evt` in a folder into one
+spreadsheet-friendly summary.
+
+With this, every file HIOKI's own app downloads decodes natively in
+Python -- no Java, no GUI, no vendor driver needed anywhere in the chain.
 
 ## Known gaps
 
 - The interrupt endpoint (`0x83`) was not characterized -- it may carry
   async notifications (e.g. button presses, mode changes) but wasn't
   needed for the read-only/download use cases this client covers.
-- `97intvl.itv` (interval log) is still downloaded as an opaque blob;
-  only `.evt`, `3197set.set`, `.wdu`, and `97demand.dem` have been decoded
-  so far. Same approach (decompile `view3197/TpData.class`) would work
-  for it too.
+- The `status` field in each `97intvl.itv` record (a bitfield) is
+  captured but not decoded -- likely flags things like "interval
+  incomplete" or "sensor overload", similar in spirit to `Set97`'s
+  event-detection flags, but not reverse-engineered here.
 - Waveform scaling (`u_adj`/`i_adj`) is validated by order-of-magnitude
   and polarity against a live reading, not against a byte-exact reference
   from HIOKI. Treat absolute precision with appropriate caution for

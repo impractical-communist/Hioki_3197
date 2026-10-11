@@ -14,6 +14,8 @@ It can:
 - **Download stored measurement data** (interval logs, demand data, voltage
   dip/swell events, inrush events) off the instrument's internal memory, in
   a layout that opens directly in HIOKI's own `View3197.jar` viewer.
+- **Decode every one of those formats natively in Python** into real
+  volts/amps/watts and CSV -- no Java or GUI needed at all.
 
 See [`docs/PROTOCOL.md`](docs/PROTOCOL.md) for how the protocol was
 reverse-engineered (by decompiling HIOKI's own unobfuscated Java app) and a
@@ -71,6 +73,9 @@ python3 examples/decode_wdu.py downloaded_data/session_01/97dv000.wdu
 
 # Decode demand data (periodic Pdem/Qdem readings) into a CSV
 python3 examples/decode_demand.py downloaded_data/session_01
+
+# Decode the interval/trend log (the big one) into a CSV
+python3 examples/decode_interval.py downloaded_data/session_01/97intvl.itv
 ```
 
 Or use it as a library:
@@ -113,14 +118,14 @@ endpoints, with binary replies (screenshots, stored data) wrapped in an
 
 ## Known limitations / ideas for contribution
 
-- `.evt` event files, `3197set.set`, `.wdu` voltage-event waveforms, and
-  `97demand.dem` demand data all decode natively in Python
-  (`hioki3197/eventfile.py`, `setfile.py`, `wdufile.py`, `demandfile.py`)
-  -- events with a timestamp, type, duration, and magnitude in volts,
-  waveforms scaled to volts/amps, and periodic Pdem/Qdem readings in
-  Watts/var. `97intvl.itv` (interval log) is still downloaded as an
-  opaque blob; decoding it the same way (decompile `view3197/TpData.class`)
-  is a natural next step.
+- Every stored-data format HIOKI's own app downloads now decodes natively
+  in Python -- `.evt` events, `3197set.set`, `.wdu` voltage-event
+  waveforms, `97demand.dem` demand data, and `97intvl.itv` interval logs
+  (`hioki3197/eventfile.py`, `setfile.py`, `wdufile.py`, `demandfile.py`,
+  `intervalfile.py`) -- all in real volts/amps/watts, no Java or GUI
+  needed anywhere.
+- The `status` bitfield in each `97intvl.itv` record is captured but not
+  decoded (see `docs/PROTOCOL.md`'s "Known gaps").
 - The interrupt endpoint (async notifications?) is not used/characterized.
 - Only tested against a single 3197 unit; other HIOKI instruments in the
   same family may use a similar/identical protocol but haven't been tried.
