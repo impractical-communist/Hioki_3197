@@ -74,12 +74,20 @@ with Hioki3197() as dev:
 
 ### Example
 
-A live capture of the instrument's wiring-check screen, pulled straight
-off the USB connection (voltages/currents read 0.0 here because nothing
-was clamped onto a circuit at the time -- the capture pipeline itself is
-confirmed working end-to-end, including the live clock matching real time):
+Two live captures, pulled straight off the USB connection with
+`examples/capture_screen.py`.
 
-![example capture](examples/live_screen_capture.png)
+With nothing connected, voltages/currents correctly read 0.0 (confirms the
+capture pipeline end-to-end, including the live clock matching real time):
+
+![example capture, idle](examples/live_screen_capture.png)
+
+With a real 240V source clamped onto U1, the instrument reads it correctly
+(U1 = 238.9V; U2/U3 show induced crosstalk from the energized phase since
+those leads are left floating, and I1-I4 are 0.0A since no current clamps
+were attached -- all expected):
+
+![example capture, 240V on U1](examples/live_screen_capture_240v.png)
 
 ## How this works, briefly
 
