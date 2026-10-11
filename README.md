@@ -62,6 +62,9 @@ python3 examples/download_stored_data.py downloaded_data/session_01
 
 # Decode a downloaded event file into real volts/amps (no Java/GUI needed)
 python3 examples/decode_event.py downloaded_data/session_01 97evt000.evt
+
+# Summarize every event file in a folder into one spreadsheet-friendly CSV
+python3 examples/events_to_csv.py downloaded_data/session_01
 ```
 
 Or use it as a library:
