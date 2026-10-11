@@ -139,28 +139,36 @@ Each module's docstring has the full byte-level layout. In short:
   `evt_id` in the header links each `.wdu` file back to the `.evt` record
   it belongs to. Values are already plain float32 volts in the file --
   no gain lookup needed (reverse-engineered from `view3197/EventWdu.class`).
+- `97demand.dem` (`hioki3197/demandfile.py`, from `:BDATA:DEMAND?`) holds
+  periodic demand readings -- 4 channels (`Pdem+`, `Pdem-`, `Qdem_LAG`,
+  `Qdem_LEAD`, real Watts/var, no scaling needed), one row per demand
+  period (15/30/60 min, from `3197set.set`'s `demand` field via
+  `demandfile.demand_period_seconds()`), starting at the file's recorded
+  start time (reverse-engineered from `view3197/TpDemData.class`).
 
-All three are checked against real hardware: the decoded `3197set.set`
+All four are checked against real hardware: the decoded `3197set.set`
 serial number matches the physical unit exactly; a captured `.evt`
 waveform's U1 channel peaks at the expected magnitude (~sqrt(2) x the live
-RMS voltage reading) once scaled; and a real disconnect/reconnect test
+RMS voltage reading) once scaled; a real disconnect/reconnect test
 produced a `.wdu` trend that smoothly falls from 239V to ~0V over the
 interruption and a second one that climbs back from ~0V to 239V on
 reconnect, both `evt_id`-linked to the matching `INTERRUPT` records in
-the `.evt` files. `examples/decode_event.py` and `examples/decode_wdu.py`
-tie it together -- human-readable summaries plus CSV export for both
-formats; `examples/events_to_csv.py` flattens every `.evt` in a folder
-into one spreadsheet-friendly summary.
+the `.evt` files; and `97demand.dem` parses cleanly at both zero and
+non-zero interval counts, with correctly-spaced interval timestamps.
+`examples/decode_event.py`, `examples/decode_wdu.py`, and
+`examples/decode_demand.py` tie it together -- human-readable summaries
+plus CSV export for each format; `examples/events_to_csv.py` flattens
+every `.evt` in a folder into one spreadsheet-friendly summary.
 
 ## Known gaps
 
 - The interrupt endpoint (`0x83`) was not characterized -- it may carry
   async notifications (e.g. button presses, mode changes) but wasn't
   needed for the read-only/download use cases this client covers.
-- `97intvl.itv` (interval log) and `97demand.dem` (demand data) are still
-  downloaded as opaque blobs; only `.evt`, `3197set.set`, and `.wdu` have
-  been decoded so far. Same approach (decompile the matching `view3197`
-  loader class) would work for those too.
+- `97intvl.itv` (interval log) is still downloaded as an opaque blob;
+  only `.evt`, `3197set.set`, `.wdu`, and `97demand.dem` have been decoded
+  so far. Same approach (decompile `view3197/TpData.class`) would work
+  for it too.
 - Waveform scaling (`u_adj`/`i_adj`) is validated by order-of-magnitude
   and polarity against a live reading, not against a byte-exact reference
   from HIOKI. Treat absolute precision with appropriate caution for
