@@ -65,6 +65,9 @@ python3 examples/decode_event.py downloaded_data/session_01 97evt000.evt
 
 # Summarize every event file in a folder into one spreadsheet-friendly CSV
 python3 examples/events_to_csv.py downloaded_data/session_01
+
+# Decode a .wdu voltage-event waveform (per-cycle RMS trend) into a CSV
+python3 examples/decode_wdu.py downloaded_data/session_01/97dv000.wdu
 ```
 
 Or use it as a library:
@@ -107,13 +110,14 @@ endpoints, with binary replies (screenshots, stored data) wrapped in an
 
 ## Known limitations / ideas for contribution
 
-- `.evt` event files and `3197set.set` decode natively in Python
-  (`hioki3197/eventfile.py`, `hioki3197/setfile.py`) -- events with a
-  timestamp, type, duration, and magnitude in volts, plus the full
-  waveform scaled to volts/amps. `97intvl.itv` (interval log) and
-  `97demand.dem` (demand data) are still downloaded as opaque blobs;
-  decoding those the same way (decompile the matching `view3197` loader
-  class) is a natural next step.
+- `.evt` event files, `3197set.set`, and `.wdu` voltage-event waveforms
+  all decode natively in Python (`hioki3197/eventfile.py`,
+  `hioki3197/setfile.py`, `hioki3197/wdufile.py`) -- events with a
+  timestamp, type, duration, and magnitude in volts, plus waveforms
+  scaled to volts/amps. `97intvl.itv` (interval log) and `97demand.dem`
+  (demand data) are still downloaded as opaque blobs; decoding those the
+  same way (decompile the matching `view3197` loader class) is a natural
+  next step.
 - The interrupt endpoint (async notifications?) is not used/characterized.
 - Only tested against a single 3197 unit; other HIOKI instruments in the
   same family may use a similar/identical protocol but haven't been tried.

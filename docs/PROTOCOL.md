@@ -133,13 +133,24 @@ Each module's docstring has the full byte-level layout. In short:
   `i_max * i_adj[channel]` (current channels) converts it to volts/amps --
   this is what `Set97.getUWaveGain()`/`getIWaveGain()` compute internally.
   `setfile.waveform_gain()` does the same.
+- `.wdu` files (`hioki3197/wdufile.py`, from `:BDATA:EVENT:VOLT?`) hold a
+  per-cycle RMS *trend* around one voltage event -- 3 channels (U1-U3),
+  typically ~300 samples spanning a pre-trigger window through the event.
+  `evt_id` in the header links each `.wdu` file back to the `.evt` record
+  it belongs to. Values are already plain float32 volts in the file --
+  no gain lookup needed (reverse-engineered from `view3197/EventWdu.class`).
 
-Both are checked against real hardware: the decoded `3197set.set` serial
-number matches the physical unit exactly, and a captured waveform's U1
-channel peaks at the expected magnitude (~sqrt(2) x the live RMS voltage
-reading) once scaled. `examples/decode_event.py` ties it together --
-prints a human-readable event summary and writes the full waveform as a
-scaled-to-volts/amps CSV.
+All three are checked against real hardware: the decoded `3197set.set`
+serial number matches the physical unit exactly; a captured `.evt`
+waveform's U1 channel peaks at the expected magnitude (~sqrt(2) x the live
+RMS voltage reading) once scaled; and a real disconnect/reconnect test
+produced a `.wdu` trend that smoothly falls from 239V to ~0V over the
+interruption and a second one that climbs back from ~0V to 239V on
+reconnect, both `evt_id`-linked to the matching `INTERRUPT` records in
+the `.evt` files. `examples/decode_event.py` and `examples/decode_wdu.py`
+tie it together -- human-readable summaries plus CSV export for both
+formats; `examples/events_to_csv.py` flattens every `.evt` in a folder
+into one spreadsheet-friendly summary.
 
 ## Known gaps
 
@@ -147,8 +158,8 @@ scaled-to-volts/amps CSV.
   async notifications (e.g. button presses, mode changes) but wasn't
   needed for the read-only/download use cases this client covers.
 - `97intvl.itv` (interval log) and `97demand.dem` (demand data) are still
-  downloaded as opaque blobs; only `.evt` and `3197set.set` have been
-  decoded so far. Same approach (decompile the matching `view3197`
+  downloaded as opaque blobs; only `.evt`, `3197set.set`, and `.wdu` have
+  been decoded so far. Same approach (decompile the matching `view3197`
   loader class) would work for those too.
 - Waveform scaling (`u_adj`/`i_adj`) is validated by order-of-magnitude
   and polarity against a live reading, not against a byte-exact reference
