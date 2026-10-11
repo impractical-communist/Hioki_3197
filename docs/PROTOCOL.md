@@ -111,13 +111,46 @@ data together, then loops over the three event counts from
 replicates this sequence and uses the same filenames, so the result opens
 directly in HIOKI's own `View3197.jar` viewer (File > Open > the folder).
 
+## Decoding `.evt` event files and `3197set.set`
+
+`hioki3197/eventfile.py` and `hioki3197/setfile.py` decode these binary
+formats natively in Python -- no Java/GUI needed. Reverse-engineered the
+same way as the USB protocol: decompiling `view3197/EventData.class`,
+`EventDetail.class`, `Eptime.class`, `Set97.class`, and `VariableType.class`.
+Each module's docstring has the full byte-level layout. In short:
+
+- `.evt` files hold a list of event records (START/STOP/DIP/SWELL/
+  INTERRUPT/TRANSIENT/...) each with a timestamp, and -- for dip/swell/
+  interrupt events specifically -- a duration (ms) and magnitude that's
+  already a plain float in volts (`EventDetail.value`, confirmed via
+  `getValueText()`, which formats it directly against the voltage range
+  with no extra scaling step). Each file also carries one captured
+  waveform: 7 channels (U1, U2, U3, I1, I2, I3, I4) x N samples, stored as
+  raw int16 ADC counts.
+- `3197set.set` holds the device's range/calibration settings, including
+  per-channel waveform gain factors (`u_adj`, `i_adj`). Multiplying a raw
+  waveform sample by `u_max * u_adj[channel]` (voltage channels) or
+  `i_max * i_adj[channel]` (current channels) converts it to volts/amps --
+  this is what `Set97.getUWaveGain()`/`getIWaveGain()` compute internally.
+  `setfile.waveform_gain()` does the same.
+
+Both are checked against real hardware: the decoded `3197set.set` serial
+number matches the physical unit exactly, and a captured waveform's U1
+channel peaks at the expected magnitude (~sqrt(2) x the live RMS voltage
+reading) once scaled. `examples/decode_event.py` ties it together --
+prints a human-readable event summary and writes the full waveform as a
+scaled-to-volts/amps CSV.
+
 ## Known gaps
 
 - The interrupt endpoint (`0x83`) was not characterized -- it may carry
   async notifications (e.g. button presses, mode changes) but wasn't
   needed for the read-only/download use cases this client covers.
-- The exact field layouts inside `3197set.set`, `97intvl.itv`,
-  `97demand.dem`, etc. have not been reverse-engineered -- this client
-  downloads them as opaque blobs and relies on HIOKI's own viewer to
-  interpret them. That's a natural next step for anyone who wants native
-  Python/CSV decoding without the Java GUI.
+- `97intvl.itv` (interval log) and `97demand.dem` (demand data) are still
+  downloaded as opaque blobs; only `.evt` and `3197set.set` have been
+  decoded so far. Same approach (decompile the matching `view3197`
+  loader class) would work for those too.
+- Waveform scaling (`u_adj`/`i_adj`) is validated by order-of-magnitude
+  and polarity against a live reading, not against a byte-exact reference
+  from HIOKI. Treat absolute precision with appropriate caution for
+  anything safety- or compliance-critical.
