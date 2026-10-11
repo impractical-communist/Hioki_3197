@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hioki3197"
+version = "0.1.0"
+description = "Unofficial Linux USB client for the HIOKI 3197 Power Quality Analyzer"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.8"
+dependencies = [
+    "pyusb>=1.2.1",
+]
+
+[project.optional-dependencies]
+image = ["Pillow>=10.0.0"]
+
+[tool.setuptools.packages.find]
+include = ["hioki3197*"]

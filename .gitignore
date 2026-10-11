@@ -1,0 +1,24 @@
+# --- Python ---
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+build/
+dist/
+
+# --- Claude Code project files ---
+.claude/
+
+# --- This repo only wraps the Linux client; HIOKI's own copyrighted
+# installers, drivers, and PDFs that happen to live alongside it are not
+# part of the project and must not be committed. ---
+/3197/
+/3197 downloaded 10-2-12/
+/9624-50/
+/Ashs Machine/
+*.zip
+*.pdf
+Thumbs.db
+
+# --- Captured data is user/session-specific; keep it local ---
+/downloaded_data/
