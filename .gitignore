@@ -22,3 +22,7 @@ Thumbs.db
 
 # --- Captured data is user/session-specific; keep it local ---
 /downloaded_data/
+/hioki_data/
+
+# --- Local working/resume notes, not part of the public project ---
+/SESSION_NOTES.md

@@ -28,6 +28,23 @@ full command reference.
 > drivers, or documentation -- only original, independently-written client
 > code.
 
+## Easiest way: the all-in-one tool
+
+`hioki3197_tool.py` is a single file, needing only `pyusb`, that does
+everything below from a simple numbered menu -- no Python knowledge
+required. Copy it to any Linux machine and run:
+
+```bash
+python3 hioki3197_tool.py
+```
+
+It checks the connection (and explains how to fix it if needed), takes
+screenshots, downloads and converts everything to spreadsheet-ready CSVs
+with a plain-English `README.txt` summary, draws charts that open in any
+web browser, and launches HIOKI's View3197 viewer. Full instructions are
+at the top of the file; the same actions are available as commands for
+scripting (`python3 hioki3197_tool.py --help`).
+
 ## Requirements
 
 - Linux, with the HIOKI 3197 connected via USB
@@ -79,14 +96,6 @@ python3 examples/decode_interval.py downloaded_data/session_01/97intvl.itv
 
 # Decode inrush-current trends (one CSV per 97inr###.inr) into CSVs
 python3 examples/decode_inrush.py downloaded_data/session_01
-```
-
-Or do all of it in one go with the standalone script, a single file
-that needs only `pyusb` (copy it to any machine, no install):
-
-```bash
-python3 hioki3197_extract.py my_session           # download + decode everything
-python3 hioki3197_extract.py --from my_session    # decode an existing download
 ```
 
 Or use it as a library:
