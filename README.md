@@ -76,6 +76,17 @@ python3 examples/decode_demand.py downloaded_data/session_01
 
 # Decode the interval/trend log (the big one) into a CSV
 python3 examples/decode_interval.py downloaded_data/session_01/97intvl.itv
+
+# Decode inrush-current trends (one CSV per 97inr###.inr) into CSVs
+python3 examples/decode_inrush.py downloaded_data/session_01
+```
+
+Or do all of it in one go with the standalone script, a single file
+that needs only `pyusb` (copy it to any machine, no install):
+
+```bash
+python3 hioki3197_extract.py my_session           # download + decode everything
+python3 hioki3197_extract.py --from my_session    # decode an existing download
 ```
 
 Or use it as a library:

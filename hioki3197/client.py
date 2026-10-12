@@ -202,9 +202,11 @@ class Hioki3197:
         for i in range(wdu_max):
             save(f"97dv{i:03d}.wdu", self.bquery(f":BDATA:EVENT:VOLT? {mem_no},{i}"))
         for i in range(inr_max):
-            # The original app reuses this one filename for every inrush
-            # event too (each download overwrites the last) -- kept as-is
-            # for compatibility with View3197.jar's expectations.
-            save("97inrush.inr", self.bquery(f":BDATA:EVENT:INRUSH? {mem_no},{i}"))
+            # The original app reuses one filename for every inrush event
+            # (each download overwrites the last), and View3197.jar expects
+            # it -- so keep that, plus a numbered copy so none are lost.
+            payload = self.bquery(f":BDATA:EVENT:INRUSH? {mem_no},{i}")
+            save(f"97inr{i:03d}.inr", payload)
+            save("97inrush.inr", payload)
 
         return {"event_count": ev_max, "voltage_event_count": wdu_max, "inrush_event_count": inr_max}

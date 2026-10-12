@@ -84,7 +84,7 @@ single, non-partitioned unit).
 | `:BDATA:EVENT:MONI? <n>` | binary | Event monitor data -> `97evmoni.mon` |
 | `:BDATA:EVENT:LIST? <n>,<i>` | binary | Event record #i -> `97evt<i:03d>.evt` |
 | `:BDATA:EVENT:VOLT? <n>,<i>` | binary | Voltage-event waveform #i -> `97dv<i:03d>.wdu` |
-| `:BDATA:EVENT:INRUSH? <n>,<i>` | binary | Inrush-event record #i -> `97inrush.inr` |
+| `:BDATA:EVENT:INRUSH? <n>,<i>` | binary | Inrush-event record #i -> `97inr###.inr` (+ `97inrush.inr`, see below) |
 
 `:BDATA:TIMEPLOT?` is the one command sent via the app's "big query" path
 (a larger read buffer), but it uses the exact same 8-digit-length framing --
@@ -157,8 +157,20 @@ Each module's docstring has the full byte-level layout. In short:
   `WP+`/`WQ_LAG`-style energy labels came straight out of its
   `makeHeader()` CSV-header-writing logic. All values are already real
   engineering units, same pre-scaled-float convention as everything else.
+- `.inr` inrush files (`hioki3197/inrushfile.py`, from
+  `:BDATA:EVENT:INRUSH?`) hold the current trend around one inrush event.
+  `view3197/EventInrush.class` subclasses `EventWdu` and only changes the
+  signature (`This is HIOKI 3197 INRUSH DATA FILE`, 35 bytes) and padding
+  (93 bytes), so the body is the `.wdu` layout: `id`, `wave_num`,
+  `pre_num`, `evt_id` (int16 each), then `float32[wave_num][3]`
+  sample-major -- but the channels are currents (I1, I2, I3) in plain
+  amps, with no scaling step in the viewer's CSV export. HIOKI's own app
+  saves every inrush event to the one filename `97inrush.inr`, so only the
+  last survives; this project also saves a numbered `97inr###.inr` per
+  event, and keeps `97inrush.inr` for View3197.jar.
 
-All five formats are checked against real hardware. The decoded
+The five formats above are checked against real hardware (inrush
+is covered separately below). The decoded
 `3197set.set` serial number matches the physical unit exactly. A captured
 `.evt` waveform's U1 channel peaks at the expected magnitude (~sqrt(2) x
 the live RMS voltage reading) once scaled. A real disconnect/reconnect
@@ -178,8 +190,15 @@ sizes (3192, 13656, 794096 bytes) all divide out to an exact integer
 `wave_num` under the 436-bytes-per-record layout, with zero bytes left
 over.
 
+The `.inr` decoder has **not** been checked against a real capture: no
+inrush event has been recorded on the test unit yet. It is checked
+against test files built to the disassembled layout, including a real
+`.wdu` body under an inrush header, which decodes to exactly the same
+values as the `.wdu` decoder.
+
 `examples/decode_event.py`, `examples/decode_wdu.py`,
-`examples/decode_demand.py`, and `examples/decode_interval.py` tie it all
+`examples/decode_demand.py`, `examples/decode_interval.py`, and
+`examples/decode_inrush.py` tie it all
 together -- human-readable summaries plus CSV export for each format;
 `examples/events_to_csv.py` flattens every `.evt` in a folder into one
 spreadsheet-friendly summary.
