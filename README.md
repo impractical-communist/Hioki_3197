@@ -32,11 +32,14 @@ full command reference.
 
 `hioki3197_tool.py` is a single file, needing only `pyusb`, that does
 everything below from a simple numbered menu -- no Python knowledge
-required. Copy it to any Linux machine and run:
+required. It works on **Windows** and Linux:
 
-```bash
-python3 hioki3197_tool.py
-```
+- **Windows:** install Python from python.org, then double-click
+  `hioki3197_tool.py`. Its "First-time setup" option installs the
+  packages it needs and walks you through giving the analyzer the WinUSB
+  driver with [Zadig](https://zadig.akeo.ie) (a one-off, about a minute;
+  note that HIOKI's own 3197 Communicator needs HIOKI's driver back).
+- **Linux:** `python3 hioki3197_tool.py`
 
 It checks the connection (and explains how to fix it if needed), takes
 screenshots, downloads and converts everything to spreadsheet-ready CSVs

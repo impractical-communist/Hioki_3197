@@ -5,18 +5,20 @@
 ===============================================================================
 
  Get the measurements out of a HIOKI 3197 and into files you can open in a
- spreadsheet or a web browser. One file, nothing to install except `pyusb`.
+ spreadsheet or a web browser. One file; works on Windows and Linux.
 
  -----------------------------------------------------------------------------
  QUICK START
  -----------------------------------------------------------------------------
 
    1. Plug the HIOKI 3197 into this computer with its USB cable and switch
-      it on.
+      it on. (The very first time, do the FIRST-TIME SETUP below.)
 
-   2. Open a terminal in the folder holding this file and run:
+   2. Start the tool:
 
-          python3 hioki3197_tool.py
+        Windows:  double-click hioki3197_tool.py
+                  (or in a Command Prompt in this folder:  py hioki3197_tool.py)
+        Linux:    in a terminal in this folder:  python3 hioki3197_tool.py
 
    3. A menu appears. Pick what you want by typing its number and pressing
       Enter. If you're not sure, start with 1 ("Check the connection"),
@@ -26,10 +28,40 @@
  file, one sub-folder per download, named by date and time.
 
  -----------------------------------------------------------------------------
- FIRST-TIME SETUP (once per computer)
+ FIRST-TIME SETUP on WINDOWS (once per computer)
  -----------------------------------------------------------------------------
 
- This tool is written for Linux.
+   a) Install Python from https://www.python.org/downloads/ . In the
+      installer, tick "Add python.exe to PATH".
+
+   b) Double-click hioki3197_tool.py and choose "First-time setup". It
+      offers to install the two small Python packages it needs (pyusb and
+      libusb-package) -- answer y.
+
+   c) Give the analyzer a driver this tool can use. Windows can't talk to
+      it out of the box; the free program Zadig fixes that in a minute:
+
+        1. Plug in and switch on the analyzer.
+        2. Download Zadig from https://zadig.akeo.ie and run it
+           (click Yes if Windows asks for permission).
+        3. In Zadig's menu choose Options > List All Devices.
+        4. In the drop-down list pick the analyzer: the entry whose
+           "USB ID" boxes show 108F and 3197 (it may be called "3197",
+           "HIOKI 3197" or "Unknown Device").
+        5. Make sure the driver box to the right of the green arrow says
+           WinUSB, then click "Replace Driver" (or "Install Driver").
+        6. When it finishes, unplug and replug the analyzer's USB cable.
+
+      Note: after this, HIOKI's own Windows communication program
+      (3197 Communicator) can't reach the analyzer, because it needs
+      HIOKI's driver. To switch back: Device Manager > right-click the
+      analyzer > Update driver > Browse my computer > Let me pick > choose
+      HIOKI's driver. (HIOKI's View3197 *viewer* works either way; it only
+      reads files.)
+
+ -----------------------------------------------------------------------------
+ FIRST-TIME SETUP on LINUX (once per computer)
+ -----------------------------------------------------------------------------
 
    a) Install the USB library and pyusb. On Ubuntu / Debian / Mint:
 
@@ -46,11 +78,12 @@
        SUBSYSTEM=="usb", ATTR{idVendor}=="108f", ATTR{idProduct}=="3197", MODE="0666")
 
  Optional extras (the tool works without them):
-   - Pillow (sudo apt install python3-pil) also saves screenshots as PNG.
-     Without it you get a BMP, which opens in any web browser or image
-     viewer.
-   - Java (sudo apt install default-jre) runs HIOKI's own viewer program,
-     View3197.jar, if you have a copy of it.
+   - Pillow also saves screenshots as PNG (Windows: py -m pip install
+     pillow; Linux: sudo apt install python3-pil). Without it you get a
+     BMP, which opens in any web browser or image viewer.
+   - Java runs HIOKI's own viewer program, View3197.jar, if you have a
+     copy of it (Windows: https://adoptium.net; Linux: sudo apt install
+     default-jre).
 
  -----------------------------------------------------------------------------
  WHAT YOU GET FROM A DOWNLOAD
@@ -89,12 +122,16 @@
  -----------------------------------------------------------------------------
 
    "No HIOKI 3197 found"     Check the cable and that the analyzer is on.
-                             Try another USB port. Run `lsusb`: a line
-                             with "108f:3197" should appear.
-   "Permission denied"       Run "First-time setup" from the menu, then
-                             unplug and replug the cable.
-   "pyusb is not installed"  See FIRST-TIME SETUP step a).
-   "No backend available"    The libusb library is missing; see step a).
+                             Try another USB port. (Linux: run `lsusb`; a
+                             line with "108f:3197" should appear.)
+   "Permission denied" or    Run "First-time setup" from the menu, then
+   "driver isn't set up"     unplug and replug the cable. On Windows this
+                             means the Zadig step (c) hasn't been done.
+   "pyusb is not installed"  Run "First-time setup" (Windows), or see
+                             FIRST-TIME SETUP on LINUX step a).
+   The window flashes and    (Windows) Python isn't installed, or .py files
+   closes immediately        aren't linked to it. Open a Command Prompt in
+                             this folder and run:  py hioki3197_tool.py
    Download stops halfway    Unplug, replug, try again. Don't press
                              buttons on the analyzer during a download.
    Currents are all zero     The current clamps weren't connected (or not
@@ -107,6 +144,8 @@
  COMMAND-LINE USE (for scripts; the menu does all of this too)
  -----------------------------------------------------------------------------
 
+   (On Windows, type  py  instead of  python3.)
+
    python3 hioki3197_tool.py check                  is the analyzer there?
    python3 hioki3197_tool.py screenshot [file]      save the current screen
    python3 hioki3197_tool.py download [folder]      download + decode all
@@ -115,7 +154,7 @@
    python3 hioki3197_tool.py decode <folder>        decode an old download
    python3 hioki3197_tool.py chart <folder> [item]  chart, e.g. item U1, Freq
    python3 hioki3197_tool.py viewer [folder]        open HIOKI's View3197
-   python3 hioki3197_tool.py setup                  USB permission setup
+   python3 hioki3197_tool.py setup                  first-time USB setup
 
  -----------------------------------------------------------------------------
 
@@ -129,6 +168,7 @@
 
 import csv
 import datetime as dt
+import errno
 import glob
 import math
 import os
@@ -136,6 +176,12 @@ import shutil
 import struct
 import subprocess
 import sys
+import traceback
+
+IS_WINDOWS = sys.platform.startswith("win")
+IS_LINUX = sys.platform.startswith("linux")
+# How to run this tool, for the instructions we print
+RUN_CMD = "py hioki3197_tool.py" if IS_WINDOWS else "python3 hioki3197_tool.py"
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(SCRIPT_DIR, "hioki_data")
@@ -144,6 +190,8 @@ VENDOR_ID = 0x108F
 PRODUCT_ID = 0x3197
 UDEV_RULE_PATH = "/etc/udev/rules.d/99-hioki3197.rules"
 UDEV_RULE = 'SUBSYSTEM=="usb", ATTR{idVendor}=="108f", ATTR{idProduct}=="3197", MODE="0666"\n'
+ZADIG_URL = "https://zadig.akeo.ie"
+WINDOWS_PACKAGES = ["pyusb", "libusb-package"]
 
 
 class UserFacingError(Exception):
@@ -162,12 +210,29 @@ def _import_usb():
         import usb.core
         import usb.util
     except ImportError:
+        if IS_WINDOWS:
+            how = ("Choose 'First-time setup' from the menu to install it, or run:\n"
+                   "     py -m pip install " + " ".join(WINDOWS_PACKAGES))
+        else:
+            how = ("Install it with:   sudo apt install libusb-1.0-0 python3-usb\n"
+                   "(or inside a virtual environment:   pip install pyusb)")
         raise UserFacingError(
-            "pyusb is not installed, so the tool can't talk to the analyzer.\n"
-            "Install it with:   sudo apt install libusb-1.0-0 python3-usb\n"
-            "(or inside a virtual environment:   pip install pyusb)\n"
-            "Decoding and charting downloads you already have still work without it.")
+            "pyusb is not installed, so the tool can't talk to the analyzer.\n" + how +
+            "\nDecoding and charting downloads you already have still work without it.")
     return usb.core, usb.util
+
+
+def _usb_backend():
+    """The libusb DLL shipped by the libusb-package wheel, if installed.
+
+    Windows has no system libusb, so that package is how it gets one;
+    elsewhere pyusb's default lookup (the system libusb) is used.
+    """
+    try:
+        import libusb_package
+    except ImportError:
+        return None
+    return libusb_package.get_libusb1_backend()
 
 
 class Analyzer:
@@ -176,24 +241,36 @@ class Analyzer:
     def __init__(self):
         self.usb_core, self.usb_util = _import_usb()
         try:
-            self.dev = self.usb_core.find(idVendor=VENDOR_ID, idProduct=PRODUCT_ID)
+            self.dev = self.usb_core.find(idVendor=VENDOR_ID, idProduct=PRODUCT_ID,
+                                          backend=_usb_backend())
         except self.usb_core.NoBackendError:
-            raise UserFacingError(
-                "pyusb is installed but the libusb library isn't.\n"
-                "Install it with:   sudo apt install libusb-1.0-0")
+            if IS_WINDOWS:
+                how = ("Choose 'First-time setup' from the menu, or run:\n"
+                       "     py -m pip install libusb-package")
+            else:
+                how = "Install it with:   sudo apt install libusb-1.0-0"
+            raise UserFacingError("pyusb is installed but the libusb library isn't.\n" + how)
         if self.dev is None:
+            check = ("  - In Device Manager, the analyzer should be listed while it's\n"
+                     "    plugged in." if IS_WINDOWS else
+                     "  - Run `lsusb` in a terminal: a line containing 108f:3197\n"
+                     "    should be listed.")
             raise UserFacingError(
                 "No HIOKI 3197 found on USB.\n"
                 "  - Is the USB cable plugged in at both ends?\n"
                 "  - Is the analyzer switched on?\n"
-                "  - Try another USB port, or unplug and replug the cable.\n"
-                "  - Run `lsusb` in a terminal: a line containing 108f:3197\n"
-                "    should be listed.")
+                "  - Try another USB port, or unplug and replug the cable.\n" + check)
         try:
-            self.dev.set_configuration()
+            if IS_WINDOWS:
+                # WinUSB can't change configuration, but has already selected
+                # the device's only one; asking for it is what opens the device.
+                cfg = self.dev.get_active_configuration()
+            else:
+                self.dev.set_configuration()
+                cfg = self.dev.get_active_configuration()
         except self.usb_core.USBError as e:
             raise _explain_usb_error(e)
-        intf = self.dev.get_active_configuration()[(0, 0)]
+        intf = cfg[(0, 0)]
         util = self.usb_util
         self.ep_out = util.find_descriptor(
             intf, custom_match=lambda e:
@@ -308,22 +385,35 @@ class Analyzer:
         return ev_n, wdu_n, inr_n
 
 
+# libusb's own error codes; pyusb passes them through unchanged on every OS
+_LIBUSB_IO, _LIBUSB_ACCESS, _LIBUSB_NO_DEVICE, _LIBUSB_NOT_FOUND = -1, -3, -4, -5
+_LIBUSB_BUSY, _LIBUSB_TIMEOUT, _LIBUSB_NOT_SUPPORTED = -6, -7, -12
+
+
 def _explain_usb_error(e):
-    errno = getattr(e, "errno", None)
-    if errno == 13:
+    code = getattr(e, "backend_error_code", None)
+    err = getattr(e, "errno", None)
+    if IS_WINDOWS and code in (_LIBUSB_ACCESS, _LIBUSB_NOT_FOUND, _LIBUSB_NOT_SUPPORTED):
+        # On Windows these all mean the analyzer still has HIOKI's driver
+        # (or none), not WinUSB
+        return UserFacingError(
+            "Windows found the analyzer, but its USB driver isn't set up for this tool yet.\n"
+            "Fix: choose 'First-time setup' from the menu and follow the Zadig steps\n"
+            "(it takes about a minute), then unplug and replug the cable.")
+    if code == _LIBUSB_ACCESS or err == errno.EACCES:
         return UserFacingError(
             "Permission denied: your user account isn't allowed to use the analyzer.\n"
             "Fix: choose 'First-time setup' from the menu (or run:\n"
-            "     python3 hioki3197_tool.py setup), then unplug and replug the cable.")
-    if errno == 16:
+            f"     {RUN_CMD} setup), then unplug and replug the cable.")
+    if code == _LIBUSB_BUSY or err == errno.EBUSY:
         return UserFacingError(
             "The analyzer is busy -- another program is using it.\n"
             "Close any other HIOKI program, then unplug and replug the cable.")
-    if errno in (19, 5):
+    if code in (_LIBUSB_NO_DEVICE, _LIBUSB_IO) or err in (errno.ENODEV, errno.EIO):
         return UserFacingError(
             "Lost contact with the analyzer (unplugged, or it switched off?).\n"
             "Replug the cable and try again.")
-    if errno == 110:
+    if code == _LIBUSB_TIMEOUT or err == errno.ETIMEDOUT:
         return UserFacingError(
             "The analyzer stopped answering (timeout).\n"
             "Unplug and replug the cable, wait a few seconds, and try again.")
@@ -551,7 +641,7 @@ def _read(folder, name):
 
 
 def _open_csv(path):
-    f = open(path, "w", newline="")
+    f = open(path, "w", newline="", encoding="utf-8")
     return f, csv.writer(f)
 
 
@@ -564,7 +654,7 @@ def decode_folder(folder, all_stats=False):
 
     s = decode_settings(_read(folder, "3197set.set"))
     summary["settings"] = s
-    with open(os.path.join(folder, "settings.txt"), "w") as f:
+    with open(os.path.join(folder, "settings.txt"), "w", encoding="utf-8") as f:
         f.write(f"Serial number:   {s['serial']}\n")
         f.write(f"Name (alias):    {s['alias'] or '(none)'}\n")
         f.write(f"Wiring code:     {s['wiring']}\n")
@@ -706,7 +796,7 @@ def write_readme(folder, summary):
         "",
         "Column names are explained at the top of hioki3197_tool.py.",
     ]
-    with open(os.path.join(folder, "README.txt"), "w") as f:
+    with open(os.path.join(folder, "README.txt"), "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
 
 
@@ -928,7 +1018,7 @@ def make_chart(folder, key, summary=None):
     out.append("</svg>")
 
     path = os.path.join(folder, f"chart_{key}.svg")
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(out) + "\n")
     return path
 
@@ -939,29 +1029,53 @@ def make_chart(folder, key, summary=None):
 
 def find_viewer_jar():
     candidates = [os.environ.get("HIOKI_VIEWER_JAR", "")]
-    for base in (SCRIPT_DIR, os.getcwd(), os.path.expanduser("~/Documents/HIOKI")):
+    bases = [SCRIPT_DIR, os.getcwd(), os.path.expanduser("~/Documents/HIOKI")]
+    if IS_WINDOWS:
+        # Where HIOKI's own installer may have put it
+        for env in ("ProgramFiles", "ProgramFiles(x86)"):
+            if os.environ.get(env):
+                bases.append(os.path.join(os.environ[env], "HIOKI"))
+    for base in bases:
         candidates += [os.path.join(base, "View3197.jar"),
                        os.path.join(base, "3197", "View3197.jar")]
     return next((c for c in candidates if c and os.path.isfile(c)), None)
 
 
+def _launch_detached(cmd, cwd=None):
+    """Start a program that keeps running after this tool exits."""
+    kwargs = {"cwd": cwd, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+    if IS_WINDOWS:
+        kwargs["creationflags"] = (getattr(subprocess, "DETACHED_PROCESS", 0x8)
+                                   | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x200))
+    else:
+        kwargs["start_new_session"] = True
+    subprocess.Popen(cmd, **kwargs)
+
+
 def launch_viewer(jar, folder=None):
-    if shutil.which("java") is None:
-        raise UserFacingError("Java isn't installed, and HIOKI's viewer needs it.\n"
-                              "Install it with:   sudo apt install default-jre")
+    # javaw is Windows' windowless Java launcher (no extra black console)
+    java = (IS_WINDOWS and shutil.which("javaw")) or shutil.which("java")
+    if not java:
+        how = ("Install it from https://adoptium.net (the 'JRE' download is enough)."
+               if IS_WINDOWS else "Install it with:   sudo apt install default-jre")
+        raise UserFacingError("Java isn't installed, and HIOKI's viewer needs it.\n" + how)
     jar_dir = os.path.dirname(os.path.abspath(jar))
     ini = os.path.join(jar_dir, "view3197.ini")
     if folder and os.path.isfile(ini):
-        # Make File > Open start in the chosen download folder
-        with open(ini) as f:
-            lines = f.readlines()
-        lines = [f"OpenDir={os.path.abspath(folder)}\n" if ln.startswith("OpenDir=") else ln
-                 for ln in lines]
-        with open(ini, "w") as f:
-            f.writelines(lines)
-    subprocess.Popen(["java", "-jar", os.path.basename(jar)], cwd=jar_dir,
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                     start_new_session=True)
+        # Make File > Open start in the chosen download folder. The viewer
+        # writes this file as Java properties (ISO-8859-1, backslashes
+        # escaped), so match that.
+        open_dir = os.path.abspath(folder).replace("\\", "\\\\")
+        try:
+            with open(ini, encoding="latin-1") as f:
+                lines = f.readlines()
+            lines = [f"OpenDir={open_dir}\n" if ln.startswith("OpenDir=") else ln
+                     for ln in lines]
+            with open(ini, "w", encoding="latin-1") as f:
+                f.writelines(lines)
+        except (OSError, UnicodeEncodeError):
+            pass  # only a convenience; the viewer still opens
+    _launch_detached([java, "-jar", os.path.basename(jar)], cwd=jar_dir)
 
 
 # ===========================================================================
@@ -989,13 +1103,12 @@ def _human_span(td):
 def open_in_desktop(path):
     """Open a file or folder with the desktop's default app; quietly skip if impossible."""
     try:
-        if sys.platform.startswith("linux"):
-            subprocess.Popen(["xdg-open", path], stdout=subprocess.DEVNULL,
-                             stderr=subprocess.DEVNULL, start_new_session=True)
-        elif sys.platform == "darwin":
-            subprocess.Popen(["open", path])
-        elif sys.platform.startswith("win"):
+        if IS_WINDOWS:
             os.startfile(path)
+        elif sys.platform == "darwin":
+            _launch_detached(["open", path])
+        else:
+            _launch_detached(["xdg-open", path])
     except Exception:
         pass
 
@@ -1034,7 +1147,10 @@ def ask_yes(prompt, default=True):
 
 def _clean_path(p):
     # Paths dragged into a terminal arrive quoted, sometimes with a file:// prefix
-    p = p.strip().strip("'\"")
+    p = p.strip()
+    if p.startswith("& "):  # PowerShell prefixes dragged-in paths with "& "
+        p = p[2:].strip()
+    p = p.strip("'\"")
     if p.startswith("file://"):
         p = p[7:]
     return os.path.expanduser(p)
@@ -1182,9 +1298,12 @@ def menu_viewer(folder=None, interactive=True):
 
 
 def menu_setup(interactive=True):
+    if IS_WINDOWS:
+        return windows_setup(interactive)
     print("\nFirst-time setup: allow your user account to use the analyzer over USB.")
-    if not sys.platform.startswith("linux"):
-        print("  This step is only needed (and only works) on Linux.")
+    if not IS_LINUX:
+        print("  This tool's setup only covers Windows and Linux. On other systems,")
+        print("  install pyusb and libusb yourself (e.g. pip install pyusb libusb-package).")
         return
     if os.path.exists(UDEV_RULE_PATH):
         with open(UDEV_RULE_PATH) as f:
@@ -1209,6 +1328,75 @@ def menu_setup(interactive=True):
     print("  Then choose option 1 to check the connection.")
 
 
+def _missing_windows_packages():
+    missing = []
+    for pkg, module in zip(WINDOWS_PACKAGES, ("usb", "libusb_package")):
+        try:
+            __import__(module)
+        except ImportError:
+            missing.append(pkg)
+    return missing
+
+
+def windows_setup(interactive=True):
+    print("\nFirst-time setup for Windows. Two steps:")
+    print("  1. Install the Python packages this tool needs.")
+    print("  2. Give the analyzer a USB driver this tool can use (with Zadig).")
+
+    print("\nStep 1: Python packages")
+    missing = _missing_windows_packages()
+    if not missing:
+        print("  Already installed.")
+    else:
+        print(f"  Needed: {', '.join(missing)}. This downloads them from the internet")
+        print("  with pip, Python's installer (a few MB).")
+        if interactive and not ask_yes("  Install them now?"):
+            print("  Skipped. To do it later, run:  py -m pip install " + " ".join(missing))
+            return
+        result = subprocess.run([sys.executable, "-m", "pip", "install", *missing])
+        if result.returncode != 0:
+            raise UserFacingError(
+                "pip couldn't install the packages (see its messages above).\n"
+                "Check the internet connection, then try again; or run this yourself\n"
+                "in a Command Prompt:   py -m pip install " + " ".join(missing))
+        import importlib
+        importlib.invalidate_caches()
+        if _missing_windows_packages():
+            raise UserFacingError("The packages installed, but Python can't see them yet.\n"
+                                  "Close this window and start the tool again.")
+        print("  Installed.")
+
+    print("\nStep 2: USB driver")
+    try:
+        with Analyzer():
+            pass
+        print("  Already done: the tool can talk to the analyzer. You're all set!")
+        return
+    except UserFacingError as e:
+        if "No HIOKI 3197 found" in str(e):
+            print("  The analyzer isn't plugged in (or is switched off). Plug it in and")
+            print("  switch it on, then follow these steps:")
+        else:
+            print("  The analyzer is plugged in, but needs the WinUSB driver:")
+    print(f"""
+    1. Download Zadig from {ZADIG_URL} and run it
+       (click Yes if Windows asks for permission).
+    2. In Zadig's menu choose Options > List All Devices.
+    3. In the drop-down list pick the analyzer: the entry whose "USB ID"
+       boxes show 108F and 3197 (it may be called "3197", "HIOKI 3197"
+       or "Unknown Device").
+    4. Make sure the box right of the green arrow says WinUSB, then click
+       "Replace Driver" (or "Install Driver").
+    5. When it finishes, unplug and replug the analyzer's USB cable, then
+       choose option 1 here to check the connection.
+
+    Note: afterwards, HIOKI's own 3197 Communicator program can't reach the
+    analyzer (it needs HIOKI's driver). The Help option explains how to
+    switch back. HIOKI's View3197 viewer is unaffected.""")
+    if interactive and ask_yes("\n  Open the Zadig web page now?"):
+        open_in_desktop(ZADIG_URL)
+
+
 MENU = [
     ("Check the connection", menu_check),
     ("Take a picture of the analyzer's screen", menu_screenshot),
@@ -1216,7 +1404,7 @@ MENU = [
     ("Convert a download you already have", menu_decode),
     ("Make a chart (voltage, current, frequency...)", menu_chart),
     ("Open HIOKI's own viewer program", menu_viewer),
-    ("First-time setup (USB permission, Linux)", menu_setup),
+    ("First-time setup (Python packages, USB driver / permission)", menu_setup),
     ("Help", None),
 ]
 
@@ -1245,6 +1433,11 @@ def run_menu():
             print(f"\nProblem: {e}")
         except KeyboardInterrupt:
             print("\n  Cancelled.")
+        except Exception:
+            # Keep the menu (and a double-clicked window) alive on a bug
+            traceback.print_exc()
+            print("\nSomething unexpected went wrong (details above). Please report it,")
+            print("including the text above. Other menu options may still work.")
         ask("\nPress Enter to return to the menu...")
 
 
@@ -1305,7 +1498,14 @@ def run_command(args):
 def main():
     if sys.version_info < (3, 6):
         sys.exit("This tool needs Python 3.6 or newer.")
+    # Never crash just because a console can't display some character
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
     args = sys.argv[1:]
+    # A double-clicked window on Windows closes the moment we exit, taking
+    # any error message with it, so hold it open in menu mode.
+    hold_window = IS_WINDOWS and not args
     try:
         if args:
             run_command(args)
@@ -1314,9 +1514,18 @@ def main():
         else:
             print(__doc__)
     except UserFacingError as e:
-        sys.exit(f"\nProblem: {e}")
+        print(f"\nProblem: {e}", file=sys.stderr)
+        if hold_window:
+            ask("\nPress Enter to close this window...")
+        sys.exit(1)
     except KeyboardInterrupt:
         sys.exit("\nCancelled.")
+    except Exception:
+        if not hold_window:
+            raise
+        traceback.print_exc()
+        ask("\nSomething unexpected went wrong (details above). Press Enter to close...")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
